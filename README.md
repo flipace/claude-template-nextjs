@@ -1,6 +1,6 @@
 # Claude Template - Next.js
 
-A minimal Next.js starter template with authentication, SQLite database, and shadcn/ui components. Designed for fast project setup with Claude Code.
+A minimal Next.js starter template with authentication, SQLite database, and plain UI components. Designed for fast project setup with Claude Code.
 
 ## Tech Stack
 
@@ -10,7 +10,7 @@ A minimal Next.js starter template with authentication, SQLite database, and sha
 | Language | TypeScript |
 | Database | SQLite via libsql + Drizzle ORM |
 | Styling | Tailwind CSS 4 |
-| UI Components | shadcn/ui (Radix primitives) |
+| UI Components | Plain shadcn-style (no Radix) |
 | Animations | Framer Motion |
 | Auth | Cookie-based sessions (bcrypt) |
 | Forms | React Hook Form + Zod |
@@ -21,14 +21,24 @@ A minimal Next.js starter template with authentication, SQLite database, and sha
 # Install dependencies
 pnpm install
 
-# Run dev server (auto-creates DB)
+# Push schema to database
+pnpm db:push
+
+# Run dev server
 pnpm dev
 
 # Build for production
 pnpm build
 ```
 
-Database is auto-initialized on first run - no migrations needed.
+## Database Commands
+
+```bash
+pnpm db:push      # Push schema changes to database (dev)
+pnpm db:generate  # Generate migration files
+pnpm db:migrate   # Run migrations (production)
+pnpm db:studio    # Open Drizzle Studio GUI
+```
 
 ## Project Structure
 
@@ -45,11 +55,13 @@ src/
 │   └── page.tsx           # Home page
 │
 ├── components/
-│   └── ui/                # shadcn/ui components
+│   └── ui/                # UI components (button, dialog, select, etc.)
 │
 ├── db/
-│   ├── index.ts           # Database connection + auto-migrations
+│   ├── index.ts           # Database connection
 │   └── schema.ts          # Drizzle schema (users table)
+│
+├── drizzle/               # Generated migrations
 │
 └── lib/
     ├── auth.ts            # Session management
@@ -95,7 +107,12 @@ export const posts = sqliteTable("posts", {
 });
 ```
 
-2. **Add types** in `src/lib/types.ts`:
+2. **Push to database**:
+```bash
+pnpm db:push
+```
+
+3. **Add types** in `src/lib/types.ts`:
 ```typescript
 export interface Post {
   id: string;
@@ -106,9 +123,9 @@ export interface Post {
 }
 ```
 
-3. **Create API routes** in `src/app/api/posts/route.ts`
+4. **Create API routes** in `src/app/api/posts/route.ts`
 
-4. **Build your UI** in `src/components/` and `src/app/`
+5. **Build your UI** in `src/components/` and `src/app/`
 
 ## Environment Variables
 
@@ -120,13 +137,8 @@ INVITE_CODE=optional-signup-code    # Required to signup (optional)
 
 ## UI Components
 
-All shadcn/ui components are in `src/components/ui/`. Add more with:
-
-```bash
-pnpm dlx shadcn@latest add [component]
-```
-
-Available: button, card, dialog, input, label, popover, select, badge, alert-dialog
+Plain React components in `src/components/ui/`:
+- button, card, dialog, input, label, select, sheet, popover, badge, alert-dialog
 
 ## File Uploads
 

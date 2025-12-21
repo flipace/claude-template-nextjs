@@ -25,10 +25,29 @@ Minimal Next.js starter template with cookie-based auth, SQLite database, and Ta
 
 ## Commands
 ```bash
-pnpm dev          # Start dev server (auto-creates DB)
+pnpm dev          # Start dev server
 pnpm build        # Production build
+pnpm db:push      # Push schema changes to database
+pnpm db:generate  # Generate migration files
+pnpm db:migrate   # Run migrations
 pnpm db:studio    # Open Drizzle Studio
 ```
+
+## Database Workflow
+
+### Initial setup
+```bash
+pnpm db:push      # Creates tables from schema
+```
+
+### Adding/changing tables
+1. Edit `src/db/schema.ts`
+2. Run `pnpm db:push` (development) or `pnpm db:generate && pnpm db:migrate` (production)
+
+### Schema location
+- Schema: `src/db/schema.ts`
+- Migrations: `drizzle/`
+- Database: `data/app.db`
 
 ## Project Structure
 ```
@@ -41,7 +60,7 @@ src/
 │   └── page.tsx      # Home page
 ├── components/ui/    # Reusable UI components
 ├── db/
-│   ├── index.ts      # DB connection + auto-migrations
+│   ├── index.ts      # DB connection
 │   └── schema.ts     # Drizzle schema (ADD YOUR TABLES HERE)
 └── lib/
     ├── auth.ts       # Session helpers
@@ -52,10 +71,20 @@ src/
 ## Key Patterns
 
 ### Adding a new table
-1. Add schema in `src/db/schema.ts`
-2. Add types in `src/lib/types.ts`
-3. Create API route in `src/app/api/[resource]/route.ts`
-4. DB auto-migrates on dev server start
+1. Add schema in `src/db/schema.ts`:
+```typescript
+export const posts = sqliteTable("posts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+```
+2. Run `pnpm db:push`
+3. Add types in `src/lib/types.ts`
+4. Create API route in `src/app/api/[resource]/route.ts`
 
 ### Auth helpers
 ```typescript
