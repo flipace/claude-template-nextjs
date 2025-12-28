@@ -49,6 +49,12 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Copy migration script and required node_modules for libsql
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/migrate.mjs ./scripts/
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@libsql ./node_modules/@libsql
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/libsql ./node_modules/libsql
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/js-base64 ./node_modules/js-base64
+
 # Create data directory for SQLite (will be mounted as volume)
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 
@@ -59,4 +65,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+# Run migrations then start server
+CMD ["sh", "-c", "node scripts/migrate.mjs && node server.js"]
