@@ -22,12 +22,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "My App",
-  description: "A Next.js starter template with auth and SQLite",
+  title: "Miri's Mindspace",
+  description: "Dein persönlicher Raum für Aufgaben und Gedanken",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "My App",
+    title: "Mindspace",
   },
   formatDetection: {
     telephone: false,

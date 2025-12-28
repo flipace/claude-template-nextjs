@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { users, apps } from "@/db/schema";
+import { users, tasks, categories } from "@/db/schema";
 import { getCurrentUser, clearSession } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -11,8 +11,9 @@ export async function DELETE() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Delete all user's apps first
-    await db.delete(apps).where(eq(apps.userId, user.id));
+    // Delete all user's tasks and categories first
+    await db.delete(tasks).where(eq(tasks.userId, user.id));
+    await db.delete(categories).where(eq(categories.userId, user.id));
 
     // Delete the user
     await db.delete(users).where(eq(users.id, user.id));
