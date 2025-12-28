@@ -23,7 +23,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate database if it doesn't exist and build
+# Create data directory for build (SQLite needs it)
+RUN mkdir -p /app/data
+
+# Build settings
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
@@ -46,12 +49,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy drizzle config and migrations for runtime
-COPY --from=builder /app/drizzle.config.ts ./
-COPY --from=builder /app/drizzle ./drizzle
-COPY --from=builder /app/src/db ./src/db
-
-# Create data directory for SQLite
+# Create data directory for SQLite (will be mounted as volume)
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 
 USER nextjs
