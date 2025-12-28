@@ -27,7 +27,8 @@ function getDb(): LibSQLDatabase<typeof schema> {
 export const db = new Proxy({} as LibSQLDatabase<typeof schema>, {
   get(_, prop) {
     const realDb = getDb();
-    const value = (realDb as Record<string | symbol, unknown>)[prop];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const value = (realDb as any)[prop];
     if (typeof value === "function") {
       return value.bind(realDb);
     }
