@@ -4,24 +4,32 @@ import { hashPassword, createSession } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
-const INVITE_CODE = "heybert";
-
 export async function POST(request: NextRequest) {
   try {
     const { username, password, inviteCode } = await request.json();
 
-    if (!username || !password || !inviteCode) {
-      return NextResponse.json(
-        { error: "Username, password, and invite code required" },
-        { status: 400 }
-      );
+    const requiredInviteCode = process.env.INVITE_CODE;
+
+    // If INVITE_CODE is set, require it
+    if (requiredInviteCode) {
+      if (!inviteCode) {
+        return NextResponse.json(
+          { error: "Invite code required" },
+          { status: 400 }
+        );
+      }
+      if (inviteCode !== requiredInviteCode) {
+        return NextResponse.json(
+          { error: "Invalid invite code" },
+          { status: 403 }
+        );
+      }
     }
 
-    // Validate invite code
-    if (inviteCode !== INVITE_CODE) {
+    if (!username || !password) {
       return NextResponse.json(
-        { error: "Invalid invite code" },
-        { status: 403 }
+        { error: "Username and password required" },
+        { status: 400 }
       );
     }
 
