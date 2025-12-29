@@ -76,7 +76,9 @@ const migrations = [
     is_checked INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
-  )`
+  )`,
+  // Migration: add start_date to tasks for date ranges
+  `ALTER TABLE tasks ADD COLUMN start_date INTEGER`
 ];
 
 function getClient(): Client {

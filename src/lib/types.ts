@@ -69,7 +69,8 @@ export const taskFormSchema = z.object({
   categoryId: z.string().optional(),
   priority: z.enum(PRIORITIES).default("medium"),
   estimatedMinutes: z.number().optional(),
-  dueDate: z.string().optional(), // ISO date string
+  startDate: z.string().optional(), // ISO date string - Startdatum
+  dueDate: z.string().optional(), // ISO date string - Enddatum
 });
 
 export type TaskFormData = z.infer<typeof taskFormSchema>;
@@ -92,6 +93,7 @@ export interface TaskWithCategory {
   notes: string | null;
   priority: Priority;
   estimatedMinutes: number | null;
+  startDate: Date | null;
   dueDate: Date | null;
   completedAt: Date | null;
   isCompleted: boolean;

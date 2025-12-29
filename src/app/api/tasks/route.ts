@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       notes: tasks.notes,
       priority: tasks.priority,
       estimatedMinutes: tasks.estimatedMinutes,
+      startDate: tasks.startDate,
       dueDate: tasks.dueDate,
       completedAt: tasks.completedAt,
       isCompleted: tasks.isCompleted,
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
       categoryId: validated.categoryId || null,
       priority: validated.priority,
       estimatedMinutes: validated.estimatedMinutes || null,
+      startDate: validated.startDate ? new Date(validated.startDate) : null,
       dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
     });
 

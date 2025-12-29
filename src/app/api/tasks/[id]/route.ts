@@ -71,7 +71,12 @@ export async function PATCH(
         .update(tasks)
         .set({
           ...validated,
-          dueDate: validated.dueDate ? new Date(validated.dueDate) : existingTask.dueDate,
+          startDate: validated.startDate !== undefined
+            ? (validated.startDate ? new Date(validated.startDate) : null)
+            : existingTask.startDate,
+          dueDate: validated.dueDate !== undefined
+            ? (validated.dueDate ? new Date(validated.dueDate) : null)
+            : existingTask.dueDate,
         })
         .where(eq(tasks.id, id));
     }

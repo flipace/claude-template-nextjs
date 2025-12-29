@@ -14,6 +14,8 @@ import {
   GripVertical,
   ChevronDown,
   ChevronUp,
+  Calendar,
+  CalendarRange,
 } from "lucide-react";
 import type { TaskWithCategory, Priority } from "@/lib/types";
 import type { Category } from "@/db/schema";
@@ -59,6 +61,20 @@ export function SortableTask({
   const [editPriority, setEditPriority] = useState<Priority>(task.priority as Priority);
   const [editCategory, setEditCategory] = useState<string | null>(task.categoryId);
   const [editTime, setEditTime] = useState<number | null>(task.estimatedMinutes);
+  const [editStartDate, setEditStartDate] = useState<string>(
+    task.startDate ? new Date(task.startDate).toISOString().split("T")[0] : ""
+  );
+  const [editDueDate, setEditDueDate] = useState<string>(
+    task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : ""
+  );
+  const [showDateRange, setShowDateRange] = useState(!!task.startDate);
+
+  // Format date for display
+  const formatDateDisplay = (date: Date | null | string) => {
+    if (!date) return null;
+    const d = typeof date === "string" ? new Date(date) : date;
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short" });
+  };
 
   const handleSave = () => {
     onUpdate({
@@ -66,6 +82,8 @@ export function SortableTask({
       priority: editPriority,
       categoryId: editCategory,
       estimatedMinutes: editTime,
+      startDate: editStartDate ? new Date(editStartDate) : null,
+      dueDate: editDueDate ? new Date(editDueDate) : null,
     });
     onToggleExpand();
   };
@@ -141,6 +159,28 @@ export function SortableTask({
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="w-3 h-3" />
                   {formatTime(task.estimatedMinutes)}
+                </span>
+              )}
+
+              {/* Date display */}
+              {(task.startDate || task.dueDate) && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  {task.startDate && task.dueDate ? (
+                    <>
+                      <CalendarRange className="w-3 h-3" />
+                      {formatDateDisplay(task.startDate)} - {formatDateDisplay(task.dueDate)}
+                    </>
+                  ) : task.dueDate ? (
+                    <>
+                      <Calendar className="w-3 h-3" />
+                      {formatDateDisplay(task.dueDate)}
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className="w-3 h-3" />
+                      Ab {formatDateDisplay(task.startDate)}
+                    </>
+                  )}
                 </span>
               )}
             </div>
@@ -269,6 +309,59 @@ export function SortableTask({
                       {t.label}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Date / Date Range */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-foreground">Datum</label>
+                  <button
+                    onClick={() => setShowDateRange(!showDateRange)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                      showDateRange
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground hover:bg-accent"
+                    }`}
+                  >
+                    <CalendarRange className="w-3 h-3" />
+                    Zeitraum
+                  </button>
+                  {(editStartDate || editDueDate) && (
+                    <button
+                      onClick={() => {
+                        setEditStartDate("");
+                        setEditDueDate("");
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Löschen
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {showDateRange && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-muted-foreground">Von</label>
+                      <input
+                        type="date"
+                        value={editStartDate}
+                        onChange={(e) => setEditStartDate(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg text-sm bg-secondary border border-transparent focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground">
+                      {showDateRange ? "Bis" : "Fällig am"}
+                    </label>
+                    <input
+                      type="date"
+                      value={editDueDate}
+                      onChange={(e) => setEditDueDate(e.target.value)}
+                      className="px-3 py-1.5 rounded-lg text-sm bg-secondary border border-transparent focus:border-primary focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -33,6 +33,7 @@ export const tasks = sqliteTable("tasks", {
   notes: text("notes"), // Zusätzliche Notizen
   priority: text("priority").notNull().default("medium"), // low, medium, high
   estimatedMinutes: integer("estimated_minutes"), // Geschätzte Dauer in Minuten
+  startDate: integer("start_date", { mode: "timestamp" }), // Optional - Startdatum für Zeitspanne
   dueDate: integer("due_date", { mode: "timestamp" }), // Optional - Fälligkeitsdatum
   completedAt: integer("completed_at", { mode: "timestamp" }), // Wann erledigt
   isCompleted: integer("is_completed", { mode: "boolean" }).notNull().default(false),

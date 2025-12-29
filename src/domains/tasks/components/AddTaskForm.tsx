@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Calendar, CalendarRange } from "lucide-react";
 import type { Priority } from "@/lib/types";
 import type { Category } from "@/db/schema";
 import { PRIORITY_LABELS, TIME_ESTIMATES, PRIORITIES } from "@/lib/types";
@@ -19,6 +19,8 @@ interface AddTaskFormProps {
     priority: Priority;
     categoryId?: string;
     estimatedMinutes?: number;
+    startDate?: string;
+    dueDate?: string;
   }) => Promise<boolean>;
   onClose: () => void;
 }
@@ -34,6 +36,9 @@ export function AddTaskForm({
   const [priority, setPriority] = useState<Priority>("medium");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null);
+  const [startDate, setStartDate] = useState<string>("");
+  const [dueDate, setDueDate] = useState<string>("");
+  const [showDateRange, setShowDateRange] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +49,8 @@ export function AddTaskForm({
       priority,
       categoryId: categoryId || undefined,
       estimatedMinutes: estimatedMinutes || undefined,
+      startDate: startDate || undefined,
+      dueDate: dueDate || undefined,
     });
 
     if (success) {
@@ -51,6 +58,9 @@ export function AddTaskForm({
       setPriority("medium");
       setCategoryId(null);
       setEstimatedMinutes(null);
+      setStartDate("");
+      setDueDate("");
+      setShowDateRange(false);
       onClose();
     }
   };
@@ -114,6 +124,63 @@ export function AddTaskForm({
             {t.label}
           </button>
         ))}
+      </div>
+
+      {/* Date / Date Range */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowDateRange(!showDateRange)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
+              showDateRange || startDate || dueDate
+                ? "bg-primary text-primary-foreground border-transparent"
+                : "bg-secondary text-secondary-foreground hover:bg-accent border-transparent"
+            }`}
+          >
+            {showDateRange ? <CalendarRange className="w-4 h-4" /> : <Calendar className="w-4 h-4" />}
+            {showDateRange ? "Zeitraum" : "Datum"}
+          </button>
+          {(startDate || dueDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate("");
+                setDueDate("");
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Löschen
+            </button>
+          )}
+        </div>
+
+        {(showDateRange || startDate || dueDate) && (
+          <div className="flex flex-wrap gap-3">
+            {showDateRange && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted-foreground">Von</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg text-sm bg-secondary border border-transparent focus:border-primary focus:outline-none"
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">
+                {showDateRange ? "Bis" : "Fällig am"}
+              </label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-sm bg-secondary border border-transparent focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {categories.length > 0 && (

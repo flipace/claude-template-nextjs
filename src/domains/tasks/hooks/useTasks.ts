@@ -31,6 +31,8 @@ export function useTasks() {
     priority: Priority;
     categoryId?: string;
     estimatedMinutes?: number;
+    startDate?: string;
+    dueDate?: string;
   }) => {
     setIsSubmitting(true);
     try {
