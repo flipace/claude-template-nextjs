@@ -36,6 +36,7 @@ export const tasks = sqliteTable("tasks", {
   dueDate: integer("due_date", { mode: "timestamp" }), // Optional - Fälligkeitsdatum
   completedAt: integer("completed_at", { mode: "timestamp" }), // Wann erledigt
   isCompleted: integer("is_completed", { mode: "boolean" }).notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0), // Manuelle Sortierung
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -49,3 +50,22 @@ export type NewCategory = typeof categories.$inferInsert;
 
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+
+// Notizen mit Erinnerungen
+export const notes = sqliteTable("notes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  content: text("content"),
+  remindAt: integer("remind_at", { mode: "timestamp" }), // Wann erinnern
+  isPinned: integer("is_pinned", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type Note = typeof notes.$inferSelect;
+export type NewNote = typeof notes.$inferInsert;

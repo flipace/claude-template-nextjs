@@ -37,7 +37,21 @@ const migrations = [
     due_date INTEGER,
     completed_at INTEGER,
     is_completed INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  )`,
+  // Migration: add sort_order to existing tasks table
+  `ALTER TABLE tasks ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`,
+  // Notes with reminders
+  `CREATE TABLE IF NOT EXISTS notes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT,
+    remind_at INTEGER,
+    is_pinned INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
   )`
 ];
 

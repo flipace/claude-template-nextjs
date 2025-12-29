@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     .from(tasks)
     .leftJoin(categories, eq(tasks.categoryId, categories.id))
     .where(and(...conditions))
-    .orderBy(desc(tasks.createdAt));
+    .orderBy(tasks.sortOrder, desc(tasks.createdAt));
 
   return NextResponse.json({ tasks: userTasks });
 }
