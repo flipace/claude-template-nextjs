@@ -71,7 +71,15 @@ async function runMigrations() {
   if (migrated) return;
   const c = getClient();
   for (const sql of migrations) {
-    await c.execute(sql);
+    try {
+      await c.execute(sql);
+    } catch (error: unknown) {
+      // Ignore "duplicate column" errors from ALTER TABLE ADD COLUMN
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("duplicate column")) {
+        throw error;
+      }
+    }
   }
   migrated = true;
   console.log("Database migrations completed");
