@@ -57,6 +57,7 @@ export const notes = sqliteTable("notes", {
   userId: text("user_id").notNull(),
   title: text("title").notNull(),
   content: text("content"),
+  color: text("color").default("default"), // default, red, orange, yellow, green, blue, purple, pink
   remindAt: integer("remind_at", { mode: "timestamp" }), // Wann erinnern
   isPinned: integer("is_pinned", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" })

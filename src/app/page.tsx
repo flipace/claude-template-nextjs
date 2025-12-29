@@ -48,7 +48,11 @@ import {
   StickyNote,
   Bell,
   Pin,
+  Palette,
+  Edit3,
+  Search,
 } from "lucide-react";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import type { User as UserType, TaskWithCategory, Priority } from "@/lib/types";
 import {
   PRIORITY_LABELS,
@@ -56,6 +60,25 @@ import {
   PRIORITIES,
 } from "@/lib/types";
 import type { Category, Note } from "@/db/schema";
+
+// Note colors
+type NoteColor = "default" | "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink";
+
+const NOTE_COLORS: { value: NoteColor; label: string; bg: string; border: string }[] = [
+  { value: "default", label: "Standard", bg: "bg-card", border: "border-border" },
+  { value: "red", label: "Rot", bg: "bg-red-50 dark:bg-red-950/30", border: "border-red-200 dark:border-red-800" },
+  { value: "orange", label: "Orange", bg: "bg-orange-50 dark:bg-orange-950/30", border: "border-orange-200 dark:border-orange-800" },
+  { value: "yellow", label: "Gelb", bg: "bg-yellow-50 dark:bg-yellow-950/30", border: "border-yellow-200 dark:border-yellow-800" },
+  { value: "green", label: "Grün", bg: "bg-green-50 dark:bg-green-950/30", border: "border-green-200 dark:border-green-800" },
+  { value: "blue", label: "Blau", bg: "bg-blue-50 dark:bg-blue-950/30", border: "border-blue-200 dark:border-blue-800" },
+  { value: "purple", label: "Lila", bg: "bg-purple-50 dark:bg-purple-950/30", border: "border-purple-200 dark:border-purple-800" },
+  { value: "pink", label: "Pink", bg: "bg-pink-50 dark:bg-pink-950/30", border: "border-pink-200 dark:border-pink-800" },
+];
+
+const getNoteColorStyles = (color: string | null | undefined) => {
+  const found = NOTE_COLORS.find((c) => c.value === color);
+  return found || NOTE_COLORS[0];
+};
 
 // Priority styles - warm colors
 const getPriorityStyles = (priority: Priority, isDark: boolean) => {
@@ -425,8 +448,11 @@ export default function Home() {
   // Notes form state
   const [newNoteTitle, setNewNoteTitle] = useState("");
   const [newNoteContent, setNewNoteContent] = useState("");
+  const [newNoteColor, setNewNoteColor] = useState<NoteColor>("default");
   const [newNoteRemindAt, setNewNoteRemindAt] = useState("");
   const [showAddNoteForm, setShowAddNoteForm] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteSearchQuery, setNoteSearchQuery] = useState("");
 
   // Expanded task for editing
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -534,6 +560,7 @@ export default function Home() {
         body: JSON.stringify({
           title: newNoteTitle.trim(),
           content: newNoteContent || undefined,
+          color: newNoteColor,
           remindAt: newNoteRemindAt || undefined,
         }),
       });
@@ -541,6 +568,7 @@ export default function Home() {
       if (res.ok) {
         setNewNoteTitle("");
         setNewNoteContent("");
+        setNewNoteColor("default");
         setNewNoteRemindAt("");
         setShowAddNoteForm(false);
         fetchData();
@@ -548,6 +576,32 @@ export default function Home() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleUpdateNote = async (noteId: string, data: Partial<Note>) => {
+    await fetch(`/api/notes/${noteId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    setEditingNoteId(null);
+    fetchData();
+  };
+
+  const startEditNote = (note: Note) => {
+    setEditingNoteId(note.id);
+    setNewNoteTitle(note.title);
+    setNewNoteContent(note.content || "");
+    setNewNoteColor((note.color as NoteColor) || "default");
+    setNewNoteRemindAt(note.remindAt ? new Date(note.remindAt).toISOString().slice(0, 16) : "");
+  };
+
+  const cancelEditNote = () => {
+    setEditingNoteId(null);
+    setNewNoteTitle("");
+    setNewNoteContent("");
+    setNewNoteColor("default");
+    setNewNoteRemindAt("");
   };
 
   const handleToggleComplete = async (taskId: string, isCompleted: boolean) => {
@@ -655,6 +709,17 @@ export default function Home() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     return remindDate >= now && remindDate <= tomorrow;
   });
+
+  // Filtered notes by search
+  const filteredNotes = useMemo(() => {
+    if (!noteSearchQuery.trim()) return notes;
+    const query = noteSearchQuery.toLowerCase();
+    return notes.filter(
+      (n) =>
+        n.title.toLowerCase().includes(query) ||
+        (n.content && n.content.toLowerCase().includes(query))
+    );
+  }, [notes, noteSearchQuery]);
 
   const toggleTheme = () => {
     setTheme(isDark ? "light" : "dark");
@@ -1179,8 +1244,19 @@ export default function Home() {
         ) : (
           <>
             {/* Notes Tab */}
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Notizen durchsuchen..."
+                value={noteSearchQuery}
+                onChange={(e) => setNoteSearchQuery(e.target.value)}
+                className="pl-10 h-10"
+              />
+            </div>
+
             <AnimatePresence mode="wait">
-              {!showAddNoteForm ? (
+              {!showAddNoteForm && !editingNoteId ? (
                 <motion.button
                   key="add-note-button"
                   initial={{ opacity: 0 }}
@@ -1198,8 +1274,20 @@ export default function Home() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  onSubmit={handleAddNote}
-                  className="bg-card border rounded-xl p-4 space-y-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingNoteId) {
+                      handleUpdateNote(editingNoteId, {
+                        title: newNoteTitle.trim(),
+                        content: newNoteContent || null,
+                        color: newNoteColor,
+                        remindAt: newNoteRemindAt ? new Date(newNoteRemindAt) : null,
+                      });
+                    } else {
+                      handleAddNote(e);
+                    }
+                  }}
+                  className={`border rounded-xl p-4 space-y-4 ${getNoteColorStyles(newNoteColor).bg} ${getNoteColorStyles(newNoteColor).border}`}
                 >
                   <div className="flex gap-2">
                     <Input
@@ -1207,25 +1295,53 @@ export default function Home() {
                       placeholder="Titel der Notiz"
                       value={newNoteTitle}
                       onChange={(e) => setNewNoteTitle(e.target.value)}
-                      className="flex-1 h-12 text-base"
+                      className="flex-1 h-12 text-base bg-background/50"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      onClick={() => setShowAddNoteForm(false)}
+                      onClick={() => {
+                        if (editingNoteId) {
+                          cancelEditNote();
+                        } else {
+                          setShowAddNoteForm(false);
+                        }
+                      }}
                       className="h-12 w-12 shrink-0"
                     >
                       <X className="w-5 h-5" />
                     </Button>
                   </div>
 
-                  <textarea
-                    placeholder="Notiz schreiben... (optional)"
+                  <RichTextEditor
                     value={newNoteContent}
-                    onChange={(e) => setNewNoteContent(e.target.value)}
-                    className="w-full h-24 px-3 py-2 text-sm rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                    onChange={(_, text) => setNewNoteContent(text)}
+                    placeholder="Notiz schreiben... (optional)"
                   />
+
+                  {/* Color Picker */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                      <Palette className="w-4 h-4" />
+                      Farbe
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {NOTE_COLORS.map((color) => (
+                        <button
+                          key={color.value}
+                          type="button"
+                          onClick={() => setNewNoteColor(color.value)}
+                          className={`w-8 h-8 rounded-full border-2 transition-all ${color.bg} ${
+                            newNoteColor === color.value
+                              ? "ring-2 ring-primary ring-offset-2"
+                              : "hover:scale-110"
+                          } ${color.border}`}
+                          title={color.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <Bell className="w-4 h-4 text-muted-foreground" />
@@ -1233,7 +1349,7 @@ export default function Home() {
                       type="datetime-local"
                       value={newNoteRemindAt}
                       onChange={(e) => setNewNoteRemindAt(e.target.value)}
-                      className="flex-1 h-10"
+                      className="flex-1 h-10 bg-background/50"
                       placeholder="Erinnerung setzen"
                     />
                   </div>
@@ -1243,64 +1359,78 @@ export default function Home() {
                     disabled={!newNoteTitle.trim() || isSubmitting}
                     className="w-full h-10 bg-primary hover:bg-primary/90"
                   >
-                    {isSubmitting ? "Speichern..." : "Notiz erstellen"}
+                    {isSubmitting ? "Speichern..." : editingNoteId ? "Aktualisieren" : "Notiz erstellen"}
                   </Button>
                 </motion.form>
               )}
             </AnimatePresence>
 
-            {/* Notes List */}
-            <div className="space-y-3">
-              {notes.length === 0 ? (
-                <div className="text-center py-16">
+            {/* Notes Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {filteredNotes.length === 0 ? (
+                <div className="col-span-full text-center py-16">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
                     <StickyNote className="w-8 h-8 text-amber-600 dark:text-amber-400" />
                   </div>
-                  <p className="text-foreground font-medium">Keine Notizen</p>
+                  <p className="text-foreground font-medium">
+                    {noteSearchQuery ? "Keine Treffer" : "Keine Notizen"}
+                  </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Halte Gedanken und Erinnerungen fest
+                    {noteSearchQuery
+                      ? "Versuche andere Suchbegriffe"
+                      : "Halte Gedanken und Erinnerungen fest"}
                   </p>
                 </div>
               ) : (
-                notes.map((note) => (
-                  <motion.div
-                    key={note.id}
-                    layout
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-card border rounded-xl p-4"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          {note.isPinned && (
-                            <Pin className="w-3 h-3 text-primary shrink-0" />
-                          )}
-                          <p className="text-base font-medium text-foreground">
-                            {note.title}
-                          </p>
-                        </div>
-                        {note.content && (
-                          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
-                            {note.content}
-                          </p>
-                        )}
-                        {note.remindAt && (
-                          <div className="flex items-center gap-1 mt-2 text-xs text-amber-600 dark:text-amber-400">
-                            <Bell className="w-3 h-3" />
-                            {formatDate(note.remindAt)}
+                filteredNotes.map((note) => {
+                  const colorStyles = getNoteColorStyles(note.color);
+                  return (
+                    <motion.div
+                      key={note.id}
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`rounded-xl p-4 border ${colorStyles.bg} ${colorStyles.border}`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            {note.isPinned && (
+                              <Pin className="w-3 h-3 text-primary shrink-0" />
+                            )}
+                            <p className="text-base font-medium text-foreground truncate">
+                              {note.title}
+                            </p>
                           </div>
-                        )}
+                          {note.content && (
+                            <p className="text-sm text-muted-foreground mt-2 line-clamp-4 whitespace-pre-wrap">
+                              {note.content}
+                            </p>
+                          )}
+                          {note.remindAt && (
+                            <div className="flex items-center gap-1 mt-3 text-xs text-amber-600 dark:text-amber-400">
+                              <Bell className="w-3 h-3" />
+                              {formatDate(note.remindAt)}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-current/10">
+                        <button
+                          onClick={() => startEditNote(note)}
+                          className="p-2 rounded-lg hover:bg-background/50 text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label="Bearbeiten"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => handleTogglePinNote(note.id, note.isPinned)}
                           className={`p-2 rounded-lg transition-colors ${
                             note.isPinned
                               ? "bg-primary/10 text-primary"
-                              : "hover:bg-accent text-muted-foreground hover:text-foreground"
+                              : "hover:bg-background/50 text-muted-foreground hover:text-foreground"
                           }`}
-                          aria-label={note.isPinned ? "Unpin" : "Pin"}
+                          aria-label={note.isPinned ? "Nicht mehr anpinnen" : "Anpinnen"}
                         >
                           <Pin className="w-4 h-4" />
                         </button>
@@ -1312,9 +1442,9 @@ export default function Home() {
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </div>
-                  </motion.div>
-                ))
+                    </motion.div>
+                  );
+                })
               )}
             </div>
           </>

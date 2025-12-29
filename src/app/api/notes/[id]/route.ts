@@ -5,9 +5,12 @@ import { getSession } from "@/lib/auth";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
+const NOTE_COLORS = ["default", "red", "orange", "yellow", "green", "blue", "purple", "pink"] as const;
+
 const noteUpdateSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   content: z.string().optional(),
+  color: z.enum(NOTE_COLORS).optional(),
   remindAt: z.string().nullable().optional(),
   isPinned: z.boolean().optional(),
 });
@@ -58,6 +61,7 @@ export async function PATCH(
 
     if (validated.title !== undefined) updateData.title = validated.title;
     if (validated.content !== undefined) updateData.content = validated.content;
+    if (validated.color !== undefined) updateData.color = validated.color;
     if (validated.remindAt !== undefined) {
       updateData.remindAt = validated.remindAt ? new Date(validated.remindAt) : null;
     }

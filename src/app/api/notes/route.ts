@@ -5,9 +5,12 @@ import { getSession } from "@/lib/auth";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 
+const NOTE_COLORS = ["default", "red", "orange", "yellow", "green", "blue", "purple", "pink"] as const;
+
 const noteFormSchema = z.object({
   title: z.string().min(1).max(200),
   content: z.string().optional(),
+  color: z.enum(NOTE_COLORS).optional(),
   remindAt: z.string().optional(), // ISO date string
   isPinned: z.boolean().optional(),
 });
@@ -46,6 +49,7 @@ export async function POST(request: NextRequest) {
       userId: session.userId,
       title: validated.title,
       content: validated.content || null,
+      color: validated.color || "default",
       remindAt: validated.remindAt ? new Date(validated.remindAt) : null,
       isPinned: validated.isPinned || false,
     });
