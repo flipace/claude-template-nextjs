@@ -816,7 +816,13 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t py-4 mt-auto">
-        <div className="max-w-2xl mx-auto px-4 text-center text-xs text-muted-foreground">Mit Liebe gemacht für Miri</div>
+        <div className="max-w-2xl mx-auto px-4 text-center text-xs text-muted-foreground">
+          made by{" "}
+          <a href="https://neschkudla.at" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+            @flipace
+          </a>
+          {" "}und Claude Code
+        </div>
       </footer>
     </div>
   );
