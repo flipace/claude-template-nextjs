@@ -31,7 +31,6 @@ import {
 import {
   INSERT_UNORDERED_LIST_COMMAND,
   INSERT_ORDERED_LIST_COMMAND,
-  REMOVE_LIST_COMMAND,
 } from "@lexical/list";
 import { $setBlocksType } from "@lexical/selection";
 import { $createHeadingNode } from "@lexical/rich-text";
@@ -42,9 +41,6 @@ import {
   List,
   ListOrdered,
   Heading2,
-  Quote,
-  Undo,
-  Redo,
 } from "lucide-react";
 
 const theme = {
@@ -121,22 +117,6 @@ function ToolbarPlugin() {
         $setBlocksType(selection, () => $createHeadingNode("h2"));
       }
     });
-  };
-
-  const undo = () => {
-    editor.dispatchCommand(
-      // @ts-expect-error - UNDO_COMMAND exists
-      { type: "UNDO_COMMAND" },
-      undefined
-    );
-  };
-
-  const redo = () => {
-    editor.dispatchCommand(
-      // @ts-expect-error - REDO_COMMAND exists
-      { type: "REDO_COMMAND" },
-      undefined
-    );
   };
 
   const buttonClass = (active: boolean) =>
