@@ -94,6 +94,7 @@ export const listItems = sqliteTable("list_items", {
   listId: text("list_id").notNull(),
   userId: text("user_id").notNull(),
   text: text("text").notNull(),
+  dueDate: integer("due_date", { mode: "timestamp" }), // Optional - Fälligkeitsdatum
   isChecked: integer("is_checked", { mode: "boolean" }).notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp" })

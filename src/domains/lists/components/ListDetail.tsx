@@ -22,9 +22,12 @@ interface ListDetailProps {
   list: ListWithItems;
   newItemText: string;
   setNewItemText: (text: string) => void;
+  newItemDueDate: string;
+  setNewItemDueDate: (date: string) => void;
   onBack: () => void;
   onAddItem: () => void;
   onToggleItem: (itemId: string, isChecked: boolean) => void;
+  onUpdateItem: (itemId: string, data: { dueDate?: string | null }) => void;
   onDeleteItem: (itemId: string) => void;
   onClearChecked: () => void;
   onDeleteList: () => void;
@@ -34,9 +37,12 @@ export function ListDetail({
   list,
   newItemText,
   setNewItemText,
+  newItemDueDate,
+  setNewItemDueDate,
   onBack,
   onAddItem,
   onToggleItem,
+  onUpdateItem,
   onDeleteItem,
   onClearChecked,
   onDeleteList,
@@ -47,23 +53,25 @@ export function ListDetail({
   const filterItemsByDate = useMemo(() => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekEnd = new Date(today);
+    weekEnd.setDate(weekEnd.getDate() + 7);
 
     return (items: typeof list.items) => {
       if (dateFilter === "all") return items;
 
       return items.filter((item) => {
-        const itemDate = new Date(item.createdAt);
+        // Use dueDate for filtering, fallback to createdAt for items without dueDate
+        const dateToUse = item.dueDate || item.createdAt;
+        const itemDate = new Date(dateToUse);
         const itemDay = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate());
 
         switch (dateFilter) {
           case "today":
             return itemDay.getTime() === today.getTime();
           case "week":
-            return itemDay >= weekAgo;
+            return itemDay >= today && itemDay <= weekEnd;
           case "older":
-            return itemDay < weekAgo;
+            return itemDay < today; // Overdue
           default:
             return true;
         }
@@ -78,7 +86,24 @@ export function ListDetail({
     all: "Alle",
     today: "Heute",
     week: "Diese Woche",
-    older: "Älter",
+    older: "Überfällig",
+  };
+
+  // Format due date for display
+  const formatDueDate = (date: Date | null) => {
+    if (!date) return null;
+    const d = new Date(date);
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short" });
+  };
+
+  // Check if due date is overdue
+  const isOverdue = (date: Date | null) => {
+    if (!date) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDay = new Date(date);
+    dueDay.setHours(0, 0, 0, 0);
+    return dueDay < today;
   };
 
   return (
@@ -145,21 +170,42 @@ export function ListDetail({
           e.preventDefault();
           onAddItem();
         }}
-        className="flex gap-2"
+        className="space-y-2"
       >
-        <Input
-          placeholder="Neuer Eintrag..."
-          value={newItemText}
-          onChange={(e) => setNewItemText(e.target.value)}
-          className="flex-1 h-12 text-base"
-        />
-        <Button
-          type="submit"
-          disabled={!newItemText.trim()}
-          className="h-12 px-4 bg-primary hover:bg-primary/90"
-        >
-          <Plus className="w-5 h-5" />
-        </Button>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Neuer Eintrag..."
+            value={newItemText}
+            onChange={(e) => setNewItemText(e.target.value)}
+            className="flex-1 h-12 text-base"
+          />
+          <Button
+            type="submit"
+            disabled={!newItemText.trim()}
+            className="h-12 px-4 bg-primary hover:bg-primary/90"
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-muted-foreground" />
+          <input
+            type="date"
+            value={newItemDueDate}
+            onChange={(e) => setNewItemDueDate(e.target.value)}
+            className="px-3 py-1.5 rounded-lg text-sm bg-secondary border border-transparent focus:border-primary focus:outline-none flex-1"
+            placeholder="Fällig am (optional)"
+          />
+          {newItemDueDate && (
+            <button
+              type="button"
+              onClick={() => setNewItemDueDate("")}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Löschen
+            </button>
+          )}
+        </div>
       </form>
 
       {/* Unchecked Items */}
@@ -171,7 +217,9 @@ export function ListDetail({
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="flex items-center gap-3 bg-card border rounded-xl p-4"
+            className={`flex items-center gap-3 bg-card border rounded-xl p-4 ${
+              isOverdue(item.dueDate) ? "border-red-300 dark:border-red-800" : ""
+            }`}
           >
             <button
               onClick={() => onToggleItem(item.id, item.isChecked)}
@@ -181,9 +229,38 @@ export function ListDetail({
             </button>
             <div className="flex-1 min-w-0">
               <span className="text-foreground">{item.text}</span>
-              <span className="block text-xs text-muted-foreground mt-0.5">
-                {formatDate(item.createdAt)}
-              </span>
+              <div className="flex items-center gap-2 mt-1">
+                {item.dueDate ? (
+                  <span className={`flex items-center gap-1 text-xs ${
+                    isOverdue(item.dueDate)
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-muted-foreground"
+                  }`}>
+                    <Calendar className="w-3 h-3" />
+                    {formatDueDate(item.dueDate)}
+                    {isOverdue(item.dueDate) && " (überfällig)"}
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const today = new Date().toISOString().split("T")[0];
+                      onUpdateItem(item.id, { dueDate: today });
+                    }}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Calendar className="w-3 h-3" />
+                    Datum hinzufügen
+                  </button>
+                )}
+                {item.dueDate && (
+                  <button
+                    onClick={() => onUpdateItem(item.id, { dueDate: null })}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
             <button
               onClick={() => onDeleteItem(item.id)}

@@ -78,7 +78,9 @@ const migrations = [
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
   )`,
   // Migration: add start_date to tasks for date ranges
-  `ALTER TABLE tasks ADD COLUMN start_date INTEGER`
+  `ALTER TABLE tasks ADD COLUMN start_date INTEGER`,
+  // Migration: add due_date to list_items for scheduling
+  `ALTER TABLE list_items ADD COLUMN due_date INTEGER`
 ];
 
 function getClient(): Client {

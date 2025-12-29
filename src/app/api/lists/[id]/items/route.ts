@@ -7,6 +7,7 @@ import { z } from "zod";
 
 const itemFormSchema = z.object({
   text: z.string().min(1).max(500),
+  dueDate: z.string().optional(), // ISO date string
 });
 
 // GET /api/lists/[id]/items - Get all items for a list
@@ -82,6 +83,7 @@ export async function POST(
       listId,
       userId: session.userId,
       text: validated.text,
+      dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
       sortOrder: maxSortOrder + 1,
     });
 

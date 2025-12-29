@@ -84,6 +84,7 @@ export default function Home() {
     addList,
     deleteList,
     addItem,
+    updateItem,
     toggleItem,
     deleteItem,
     clearCheckedItems,
@@ -99,6 +100,7 @@ export default function Home() {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [availableTime, setAvailableTime] = useState<number | null>(null);
   const [showTimePlanner, setShowTimePlanner] = useState(false);
+  const [taskDateFilter, setTaskDateFilter] = useState<"all" | "today" | "week" | "overdue">("all");
 
   // Notes UI state
   const [showAddNoteForm, setShowAddNoteForm] = useState(false);
@@ -115,6 +117,7 @@ export default function Home() {
   const [newListName, setNewListName] = useState("");
   const [newListIcon, setNewListIcon] = useState("🛒");
   const [newItemText, setNewItemText] = useState("");
+  const [newItemDueDate, setNewItemDueDate] = useState("");
 
   // DnD sensors
   const sensors = useSensors(
@@ -252,11 +255,17 @@ export default function Home() {
 
   const handleAddItem = async (listId: string) => {
     if (!newItemText.trim()) return;
-    const success = await addItem(listId, newItemText.trim());
+    const success = await addItem(listId, newItemText.trim(), newItemDueDate || undefined);
     if (success) {
       setNewItemText("");
+      setNewItemDueDate("");
       refreshData();
     }
+  };
+
+  const handleUpdateItem = async (listId: string, itemId: string, data: { dueDate?: string | null }) => {
+    await updateItem(listId, itemId, data);
+    refreshData();
   };
 
   const handleToggleItem = async (listId: string, itemId: string, isChecked: boolean) => {
@@ -274,8 +283,37 @@ export default function Home() {
     refreshData();
   };
 
-  // Computed values
-  const filteredTasks = filterCategory ? tasks.filter((t) => t.categoryId === filterCategory) : tasks;
+  // Computed values - apply both category and date filters
+  const dateFilteredTasks = useMemo(() => {
+    if (taskDateFilter === "all") return tasks;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekEnd = new Date(today);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    return tasks.filter((task) => {
+      // Use dueDate or startDate for filtering
+      const taskDate = task.dueDate || task.startDate;
+      if (!taskDate) return false; // Tasks without dates don't show in filtered views
+
+      const date = new Date(taskDate);
+      const taskDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+      switch (taskDateFilter) {
+        case "today":
+          return taskDay.getTime() === today.getTime();
+        case "week":
+          return taskDay >= today && taskDay <= weekEnd;
+        case "overdue":
+          return taskDay < today;
+        default:
+          return true;
+      }
+    });
+  }, [tasks, taskDateFilter]);
+
+  const filteredTasks = filterCategory ? dateFilteredTasks.filter((t) => t.categoryId === filterCategory) : dateFilteredTasks;
   const sortedTasks = [...filteredTasks];
   const openTasks = tasks.filter((t) => !t.isCompleted);
   const totalOpen = openTasks.length;
@@ -577,6 +615,29 @@ export default function Home() {
               </div>
             )}
 
+            {/* Date Filter */}
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+              {(["all", "today", "week", "overdue"] as const).map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setTaskDateFilter(filter)}
+                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-all shrink-0 flex items-center gap-1.5 ${
+                    taskDateFilter === filter
+                      ? filter === "overdue"
+                        ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                        : "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  {filter === "all" && "Alle Termine"}
+                  {filter === "today" && "Heute"}
+                  {filter === "week" && "Diese Woche"}
+                  {filter === "overdue" && "Überfällig"}
+                </button>
+              ))}
+            </div>
+
             {/* Task List with DnD */}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={sortedTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -586,8 +647,18 @@ export default function Home() {
                       <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
                         <Target className="w-8 h-8 text-orange-600 dark:text-orange-400" />
                       </div>
-                      <p className="text-foreground font-medium">{showCompleted ? "Keine erledigten Aufgaben" : "Keine offenen Aufgaben"}</p>
-                      <p className="text-sm text-muted-foreground mt-1">{showCompleted ? "Fang an abzuhaken!" : "Zeit zum Durchatmen!"}</p>
+                      <p className="text-foreground font-medium">
+                        {taskDateFilter !== "all"
+                          ? `Keine Aufgaben ${taskDateFilter === "today" ? "für heute" : taskDateFilter === "week" ? "diese Woche" : "überfällig"}`
+                          : showCompleted ? "Keine erledigten Aufgaben" : "Keine offenen Aufgaben"}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {taskDateFilter !== "all" ? (
+                          <button onClick={() => setTaskDateFilter("all")} className="text-primary hover:underline">
+                            Alle anzeigen
+                          </button>
+                        ) : showCompleted ? "Fang an abzuhaken!" : "Zeit zum Durchatmen!"}
+                      </p>
                     </div>
                   ) : (
                     sortedTasks.map((task) => (
@@ -728,9 +799,12 @@ export default function Home() {
                 list={activeList}
                 newItemText={newItemText}
                 setNewItemText={setNewItemText}
+                newItemDueDate={newItemDueDate}
+                setNewItemDueDate={setNewItemDueDate}
                 onBack={() => setActiveListId(null)}
                 onAddItem={() => handleAddItem(activeList.id)}
                 onToggleItem={(itemId, isChecked) => handleToggleItem(activeList.id, itemId, isChecked)}
+                onUpdateItem={(itemId, data) => handleUpdateItem(activeList.id, itemId, data)}
                 onDeleteItem={(itemId) => handleDeleteItem(activeList.id, itemId)}
                 onClearChecked={() => handleClearCheckedItems(activeList.id)}
                 onDeleteList={() => handleDeleteList(activeList.id)}

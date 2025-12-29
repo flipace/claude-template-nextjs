@@ -8,6 +8,7 @@ import { z } from "zod";
 const itemUpdateSchema = z.object({
   text: z.string().min(1).max(500).optional(),
   isChecked: z.boolean().optional(),
+  dueDate: z.string().nullable().optional(), // ISO date string or null to clear
 });
 
 // PATCH /api/lists/[id]/items/[itemId] - Update item
@@ -40,6 +41,9 @@ export async function PATCH(
 
     if (validated.text !== undefined) updateData.text = validated.text;
     if (validated.isChecked !== undefined) updateData.isChecked = validated.isChecked;
+    if (validated.dueDate !== undefined) {
+      updateData.dueDate = validated.dueDate ? new Date(validated.dueDate) : null;
+    }
 
     await db
       .update(listItems)

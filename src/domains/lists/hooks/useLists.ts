@@ -47,13 +47,21 @@ export function useLists() {
     await fetch(`/api/lists/${listId}`, { method: "DELETE" });
   }, []);
 
-  const addItem = useCallback(async (listId: string, text: string) => {
+  const addItem = useCallback(async (listId: string, text: string, dueDate?: string) => {
     const res = await fetch(`/api/lists/${listId}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, dueDate }),
     });
     return res.ok;
+  }, []);
+
+  const updateItem = useCallback(async (listId: string, itemId: string, data: { text?: string; dueDate?: string | null }) => {
+    await fetch(`/api/lists/${listId}/items/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
   }, []);
 
   const toggleItem = useCallback(async (listId: string, itemId: string, isChecked: boolean) => {
@@ -81,6 +89,7 @@ export function useLists() {
     updateList,
     deleteList,
     addItem,
+    updateItem,
     toggleItem,
     deleteItem,
     clearCheckedItems,
