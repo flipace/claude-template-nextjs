@@ -55,7 +55,28 @@ const migrations = [
     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
   )`,
   // Migration: add color to existing notes table
-  `ALTER TABLE notes ADD COLUMN color TEXT DEFAULT 'default'`
+  `ALTER TABLE notes ADD COLUMN color TEXT DEFAULT 'default'`,
+  // Lists (e.g., shopping lists)
+  `CREATE TABLE IF NOT EXISTS lists (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    icon TEXT DEFAULT '🛒',
+    color TEXT DEFAULT 'default',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+  )`,
+  // List items
+  `CREATE TABLE IF NOT EXISTS list_items (
+    id TEXT PRIMARY KEY,
+    list_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    is_checked INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  )`
 ];
 
 function getClient(): Client {

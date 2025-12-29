@@ -51,6 +51,8 @@ import {
   Palette,
   Edit3,
   Search,
+  ShoppingCart,
+  MoreVertical,
 } from "lucide-react";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import type { User as UserType, TaskWithCategory, Priority } from "@/lib/types";
@@ -59,7 +61,7 @@ import {
   TIME_ESTIMATES,
   PRIORITIES,
 } from "@/lib/types";
-import type { Category, Note } from "@/db/schema";
+import type { Category, Note, List, ListItem } from "@/db/schema";
 
 // Note colors
 type NoteColor = "default" | "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink";
@@ -431,7 +433,17 @@ export default function Home() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"tasks" | "notes">("tasks");
+  const [activeTab, setActiveTab] = useState<"tasks" | "notes" | "lists">("tasks");
+
+  // Lists state
+  type ListWithItems = List & { items: ListItem[] };
+  const [lists, setLists] = useState<ListWithItems[]>([]);
+  const [activeListId, setActiveListId] = useState<string | null>(null);
+  const [newListName, setNewListName] = useState("");
+  const [newListIcon, setNewListIcon] = useState("🛒");
+  const [showAddListForm, setShowAddListForm] = useState(false);
+  const [newItemText, setNewItemText] = useState("");
+  const [editingListId, setEditingListId] = useState<string | null>(null);
 
   // Time planning state
   const [availableTime, setAvailableTime] = useState<number | null>(null);
@@ -480,14 +492,15 @@ export default function Home() {
       .catch(() => setLoading(false));
   }, []);
 
-  // Fetch tasks, categories, and notes
+  // Fetch tasks, categories, notes, and lists
   const fetchData = useCallback(async () => {
     if (!user) return;
 
-    const [tasksRes, categoriesRes, notesRes] = await Promise.all([
+    const [tasksRes, categoriesRes, notesRes, listsRes] = await Promise.all([
       fetch(`/api/tasks?completed=${showCompleted}`),
       fetch("/api/categories"),
       fetch("/api/notes"),
+      fetch("/api/lists"),
     ]);
 
     if (tasksRes.ok) {
@@ -503,6 +516,11 @@ export default function Home() {
     if (notesRes.ok) {
       const data = await notesRes.json();
       setNotes(data.notes);
+    }
+
+    if (listsRes.ok) {
+      const data = await listsRes.json();
+      setLists(data.lists);
     }
   }, [user, showCompleted]);
 
@@ -638,6 +656,88 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isPinned: !isPinned }),
     });
+    fetchData();
+  };
+
+  // List handlers
+  const handleAddList = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newListName.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch("/api/lists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newListName.trim(),
+          icon: newListIcon,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setNewListName("");
+        setNewListIcon("🛒");
+        setShowAddListForm(false);
+        setActiveListId(data.list.id);
+        fetchData();
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteList = async (listId: string) => {
+    await fetch(`/api/lists/${listId}`, { method: "DELETE" });
+    if (activeListId === listId) {
+      setActiveListId(null);
+    }
+    fetchData();
+  };
+
+  const handleUpdateList = async (listId: string, data: { name?: string; icon?: string }) => {
+    await fetch(`/api/lists/${listId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    setEditingListId(null);
+    fetchData();
+  };
+
+  const handleAddItem = async (listId: string) => {
+    if (!newItemText.trim()) return;
+
+    const res = await fetch(`/api/lists/${listId}/items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: newItemText.trim() }),
+    });
+
+    if (res.ok) {
+      setNewItemText("");
+      fetchData();
+    }
+  };
+
+  const handleToggleItem = async (listId: string, itemId: string, isChecked: boolean) => {
+    await fetch(`/api/lists/${listId}/items/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isChecked: !isChecked }),
+    });
+    fetchData();
+  };
+
+  const handleDeleteItem = async (listId: string, itemId: string) => {
+    await fetch(`/api/lists/${listId}/items/${itemId}`, { method: "DELETE" });
+    fetchData();
+  };
+
+  const handleClearCheckedItems = async (listId: string) => {
+    await fetch(`/api/lists/${listId}/items`, { method: "DELETE" });
     fetchData();
   };
 
@@ -909,6 +1009,22 @@ export default function Home() {
             {notes.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/20 text-xs">
                 {notes.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("lists")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "lists"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            }`}
+          >
+            <ShoppingCart className="w-4 h-4" />
+            Listen
+            {lists.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/20 text-xs">
+                {lists.length}
               </span>
             )}
           </button>
@@ -1241,7 +1357,7 @@ export default function Home() {
               </SortableContext>
             </DndContext>
           </>
-        ) : (
+        ) : activeTab === "notes" ? (
           <>
             {/* Notes Tab */}
             {/* Search Bar */}
@@ -1448,7 +1564,276 @@ export default function Home() {
               )}
             </div>
           </>
-        )}
+        ) : activeTab === "lists" ? (
+          <>
+            {/* Lists Tab */}
+            <div className="space-y-4">
+              {/* Add List Button */}
+              <AnimatePresence mode="wait">
+                {!showAddListForm ? (
+                  <motion.button
+                    key="add-list-button"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowAddListForm(true)}
+                    className="w-full py-4 border-2 border-dashed rounded-xl text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span className="font-medium">Neue Liste</span>
+                  </motion.button>
+                ) : (
+                  <motion.form
+                    key="add-list-form"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    onSubmit={handleAddList}
+                    className="bg-card border rounded-xl p-4 space-y-4"
+                  >
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const icons = ["🛒", "📝", "🎁", "🏠", "💼", "🎯", "📚", "🍕"];
+                          const current = icons.indexOf(newListIcon);
+                          setNewListIcon(icons[(current + 1) % icons.length]);
+                        }}
+                        className="w-12 h-12 text-2xl bg-secondary rounded-lg hover:bg-accent transition-colors shrink-0 flex items-center justify-center"
+                      >
+                        {newListIcon}
+                      </button>
+                      <Input
+                        autoFocus
+                        placeholder="Name der Liste"
+                        value={newListName}
+                        onChange={(e) => setNewListName(e.target.value)}
+                        className="flex-1 h-12 text-base"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setShowAddListForm(false);
+                          setNewListName("");
+                        }}
+                        className="h-12 w-12 shrink-0"
+                      >
+                        <X className="w-5 h-5" />
+                      </Button>
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={!newListName.trim() || isSubmitting}
+                      className="w-full h-10 bg-primary hover:bg-primary/90"
+                    >
+                      {isSubmitting ? "Erstellen..." : "Liste erstellen"}
+                    </Button>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+
+              {/* Lists Overview or Active List */}
+              {!activeListId ? (
+                /* All Lists */
+                <div className="space-y-3">
+                  {lists.length === 0 ? (
+                    <div className="text-center py-16">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center">
+                        <ShoppingCart className="w-8 h-8 text-cyan-600 dark:text-cyan-400" />
+                      </div>
+                      <p className="text-foreground font-medium">Keine Listen</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Erstelle deine erste Einkaufsliste!
+                      </p>
+                    </div>
+                  ) : (
+                    lists.map((list) => {
+                      const checkedCount = list.items.filter((i) => i.isChecked).length;
+                      const totalCount = list.items.length;
+                      return (
+                        <motion.button
+                          key={list.id}
+                          layout
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          onClick={() => setActiveListId(list.id)}
+                          className="w-full bg-card border rounded-xl p-4 text-left hover:border-primary/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">{list.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-foreground truncate">
+                                {list.name}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {totalCount === 0
+                                  ? "Keine Einträge"
+                                  : `${checkedCount}/${totalCount} erledigt`}
+                              </p>
+                            </div>
+                            {totalCount > 0 && (
+                              <div className="w-12 h-12 rounded-full border-4 border-secondary flex items-center justify-center relative">
+                                <svg className="absolute inset-0 -rotate-90" viewBox="0 0 36 36">
+                                  <circle
+                                    cx="18"
+                                    cy="18"
+                                    r="15"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="3"
+                                    className="text-primary"
+                                    strokeDasharray={`${(checkedCount / totalCount) * 94.2} 94.2`}
+                                  />
+                                </svg>
+                                <span className="text-xs font-medium">
+                                  {Math.round((checkedCount / totalCount) * 100)}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </motion.button>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                /* Active List Detail */
+                (() => {
+                  const activeList = lists.find((l) => l.id === activeListId);
+                  if (!activeList) return null;
+
+                  const uncheckedItems = activeList.items.filter((i) => !i.isChecked);
+                  const checkedItems = activeList.items.filter((i) => i.isChecked);
+
+                  return (
+                    <div className="space-y-4">
+                      {/* List Header */}
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setActiveListId(null)}
+                          className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <ChevronUp className="w-5 h-5 rotate-[-90deg]" />
+                        </button>
+                        <span className="text-2xl">{activeList.icon}</span>
+                        <h2 className="text-lg font-semibold text-foreground flex-1">
+                          {activeList.name}
+                        </h2>
+                        <button
+                          onClick={() => handleDeleteList(activeList.id)}
+                          className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Add Item */}
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleAddItem(activeList.id);
+                        }}
+                        className="flex gap-2"
+                      >
+                        <Input
+                          placeholder="Neuer Eintrag..."
+                          value={newItemText}
+                          onChange={(e) => setNewItemText(e.target.value)}
+                          className="flex-1 h-12 text-base"
+                        />
+                        <Button
+                          type="submit"
+                          disabled={!newItemText.trim()}
+                          className="h-12 px-4 bg-primary hover:bg-primary/90"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </Button>
+                      </form>
+
+                      {/* Unchecked Items */}
+                      <div className="space-y-2">
+                        {uncheckedItems.map((item) => (
+                          <motion.div
+                            key={item.id}
+                            layout
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="flex items-center gap-3 bg-card border rounded-xl p-4"
+                          >
+                            <button
+                              onClick={() => handleToggleItem(activeList.id, item.id, item.isChecked)}
+                              className="shrink-0"
+                            >
+                              <Circle className="w-6 h-6 text-muted-foreground hover:text-primary transition-colors" />
+                            </button>
+                            <span className="flex-1 text-foreground">{item.text}</span>
+                            <button
+                              onClick={() => handleDeleteItem(activeList.id, item.id)}
+                              className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </motion.div>
+                        ))}
+                      </div>
+
+                      {/* Checked Items */}
+                      {checkedItems.length > 0 && (
+                        <div className="space-y-2 pt-4 border-t">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              Erledigt ({checkedItems.length})
+                            </span>
+                            <button
+                              onClick={() => handleClearCheckedItems(activeList.id)}
+                              className="text-sm text-red-600 dark:text-red-400 hover:underline"
+                            >
+                              Alle löschen
+                            </button>
+                          </div>
+                          {checkedItems.map((item) => (
+                            <motion.div
+                              key={item.id}
+                              layout
+                              className="flex items-center gap-3 bg-card/50 border rounded-xl p-4 opacity-60"
+                            >
+                              <button
+                                onClick={() => handleToggleItem(activeList.id, item.id, item.isChecked)}
+                                className="shrink-0"
+                              >
+                                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                              </button>
+                              <span className="flex-1 text-muted-foreground line-through">
+                                {item.text}
+                              </span>
+                              <button
+                                onClick={() => handleDeleteItem(activeList.id, item.id)}
+                                className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Empty State */}
+                      {activeList.items.length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <p>Die Liste ist leer</p>
+                          <p className="text-sm">Füge deinen ersten Eintrag hinzu!</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </>
+        ) : null}
       </main>
 
       {/* Footer */}

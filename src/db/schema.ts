@@ -70,3 +70,38 @@ export const notes = sqliteTable("notes", {
 
 export type Note = typeof notes.$inferSelect;
 export type NewNote = typeof notes.$inferInsert;
+
+// Listen (z.B. Einkaufslisten)
+export const lists = sqliteTable("lists", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  icon: text("icon").default("🛒"), // Emoji icon
+  color: text("color").default("default"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+// Listeneinträge
+export const listItems = sqliteTable("list_items", {
+  id: text("id").primaryKey(),
+  listId: text("list_id").notNull(),
+  userId: text("user_id").notNull(),
+  text: text("text").notNull(),
+  isChecked: integer("is_checked", { mode: "boolean" }).notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type List = typeof lists.$inferSelect;
+export type NewList = typeof lists.$inferInsert;
+
+export type ListItem = typeof listItems.$inferSelect;
+export type NewListItem = typeof listItems.$inferInsert;
