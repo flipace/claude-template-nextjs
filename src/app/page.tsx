@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,7 +13,6 @@ import {
   Plus,
   Check,
   Clock,
-  Sparkles,
   Trash2,
   Edit3,
   X,
@@ -24,6 +23,9 @@ import {
   ListTodo,
   Flame,
   Timer,
+  Target,
+  Zap,
+  Calendar,
 } from "lucide-react";
 import type { User as UserType, TaskWithCategory, Priority } from "@/lib/types";
 import {
@@ -33,41 +35,41 @@ import {
 } from "@/lib/types";
 import type { Category } from "@/db/schema";
 
-// Theme-aware priority colors
+// Priority styles - warm colors
 const getPriorityStyles = (priority: Priority, isDark: boolean) => {
   const styles = {
     low: isDark
-      ? "bg-slate-500/20 text-slate-300 border-slate-500/30"
-      : "bg-slate-100 text-slate-600 border-slate-200",
+      ? "bg-stone-700 text-stone-300 border-stone-600"
+      : "bg-stone-100 text-stone-600 border-stone-200",
     medium: isDark
-      ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+      ? "bg-amber-900/50 text-amber-300 border-amber-700"
       : "bg-amber-50 text-amber-700 border-amber-200",
     high: isDark
-      ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
-      : "bg-rose-50 text-rose-600 border-rose-200",
+      ? "bg-red-900/50 text-red-300 border-red-700"
+      : "bg-red-50 text-red-600 border-red-200",
   };
   return styles[priority];
 };
 
-// Theme-aware category colors
+// Category colors - warm palette
 const getCategoryStyles = (color: string, isDark: boolean) => {
   const darkColors: Record<string, string> = {
-    rose: "bg-rose-500/20 text-rose-300 border-rose-500/30",
-    pink: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-    fuchsia: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30",
-    purple: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-    violet: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-    indigo: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-    blue: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-    sky: "bg-sky-500/20 text-sky-300 border-sky-500/30",
-    cyan: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-    teal: "bg-teal-500/20 text-teal-300 border-teal-500/30",
-    emerald: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-    green: "bg-green-500/20 text-green-300 border-green-500/30",
-    lime: "bg-lime-500/20 text-lime-300 border-lime-500/30",
-    yellow: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-    amber: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    orange: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+    rose: "bg-rose-900/50 text-rose-300 border-rose-700",
+    pink: "bg-pink-900/50 text-pink-300 border-pink-700",
+    fuchsia: "bg-fuchsia-900/50 text-fuchsia-300 border-fuchsia-700",
+    purple: "bg-purple-900/50 text-purple-300 border-purple-700",
+    violet: "bg-violet-900/50 text-violet-300 border-violet-700",
+    indigo: "bg-indigo-900/50 text-indigo-300 border-indigo-700",
+    blue: "bg-blue-900/50 text-blue-300 border-blue-700",
+    sky: "bg-sky-900/50 text-sky-300 border-sky-700",
+    cyan: "bg-cyan-900/50 text-cyan-300 border-cyan-700",
+    teal: "bg-teal-900/50 text-teal-300 border-teal-700",
+    emerald: "bg-emerald-900/50 text-emerald-300 border-emerald-700",
+    green: "bg-green-900/50 text-green-300 border-green-700",
+    lime: "bg-lime-900/50 text-lime-300 border-lime-700",
+    yellow: "bg-yellow-900/50 text-yellow-300 border-yellow-700",
+    amber: "bg-amber-900/50 text-amber-300 border-amber-700",
+    orange: "bg-orange-900/50 text-orange-300 border-orange-700",
   };
 
   const lightColors: Record<string, string> = {
@@ -90,7 +92,7 @@ const getCategoryStyles = (color: string, isDark: boolean) => {
   };
 
   const colors = isDark ? darkColors : lightColors;
-  return colors[color] || colors.blue;
+  return colors[color] || colors.orange;
 };
 
 export default function Home() {
@@ -104,6 +106,10 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+
+  // Time planning state
+  const [availableTime, setAvailableTime] = useState<number | null>(null);
+  const [showTimePlanner, setShowTimePlanner] = useState(false);
 
   // Form state
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -234,16 +240,50 @@ export default function Home() {
   });
 
   // Stats
-  const totalOpen = tasks.filter((t) => !t.isCompleted).length;
-  const highPriorityCount = tasks.filter(
-    (t) => !t.isCompleted && t.priority === "high"
-  ).length;
-  const totalEstimatedTime = tasks
-    .filter((t) => !t.isCompleted)
-    .reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
+  const openTasks = tasks.filter((t) => !t.isCompleted);
+  const totalOpen = openTasks.length;
+  const highPriorityCount = openTasks.filter((t) => t.priority === "high").length;
+  const totalEstimatedTime = openTasks.reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
+
+  // Smart task suggestions based on available time
+  const suggestedTasks = useMemo(() => {
+    if (!availableTime) return [];
+
+    // Get open tasks with time estimates, sorted by priority
+    const tasksWithTime = openTasks
+      .filter((t) => t.estimatedMinutes && t.estimatedMinutes <= availableTime)
+      .sort((a, b) => {
+        const priorityOrder = { high: 0, medium: 1, low: 2 };
+        return (priorityOrder[a.priority as Priority] ?? 1) - (priorityOrder[b.priority as Priority] ?? 1);
+      });
+
+    // Greedy algorithm to fill available time
+    const result: TaskWithCategory[] = [];
+    let remainingTime = availableTime;
+
+    for (const task of tasksWithTime) {
+      if (task.estimatedMinutes && task.estimatedMinutes <= remainingTime) {
+        result.push(task);
+        remainingTime -= task.estimatedMinutes;
+      }
+    }
+
+    return result;
+  }, [availableTime, openTasks]);
+
+  const suggestedTime = suggestedTasks.reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
 
   const toggleTheme = () => {
     setTheme(isDark ? "light" : "dark");
+  };
+
+  const formatTime = (minutes: number) => {
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    }
+    return `${minutes}m`;
   };
 
   if (loading) {
@@ -264,10 +304,10 @@ export default function Home() {
         >
           {/* Logo */}
           <div className="space-y-3">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg">
-              <Sparkles className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-primary flex items-center justify-center shadow-lg">
+              <Target className="w-8 h-8 text-primary-foreground" />
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 dark:from-violet-400 dark:to-fuchsia-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold text-foreground">
               Miri's Mindspace
             </h1>
             <p className="text-muted-foreground">
@@ -278,8 +318,8 @@ export default function Home() {
           {/* Features */}
           <div className="space-y-3 text-sm">
             <div className="flex items-center gap-3 p-3 rounded-xl bg-card border">
-              <div className="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-500/20 flex items-center justify-center">
-                <ListTodo className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+              <div className="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                <ListTodo className="w-5 h-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div className="text-left">
                 <p className="font-medium text-foreground">Überblick behalten</p>
@@ -287,7 +327,7 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 rounded-xl bg-card border">
-              <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
                 <Flame className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div className="text-left">
@@ -296,12 +336,12 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 rounded-xl bg-card border">
-              <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                 <Timer className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="text-left">
-                <p className="font-medium text-foreground">Zeit einschätzen</p>
-                <p className="text-xs text-muted-foreground">Realistisch planen</p>
+                <p className="font-medium text-foreground">Zeit planen</p>
+                <p className="text-xs text-muted-foreground">Realistisch einteilen</p>
               </div>
             </div>
           </div>
@@ -309,8 +349,8 @@ export default function Home() {
           {/* Actions */}
           <div className="space-y-3 pt-2">
             <Link href="/signup" className="block">
-              <Button className="w-full h-12 text-base bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-lg">
-                <Sparkles className="w-5 h-5 mr-2" />
+              <Button className="w-full h-12 text-base bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg">
+                <Zap className="w-5 h-5 mr-2" />
                 Jetzt starten
               </Button>
             </Link>
@@ -340,7 +380,7 @@ export default function Home() {
       {/* Header */}
       <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-          <h1 className="text-lg font-semibold bg-gradient-to-r from-violet-600 to-fuchsia-600 dark:from-violet-400 dark:to-fuchsia-400 bg-clip-text text-transparent">
+          <h1 className="text-lg font-semibold text-primary">
             Mindspace
           </h1>
           <div className="flex items-center gap-2">
@@ -368,11 +408,101 @@ export default function Home() {
 
       {/* Main */}
       <main className="flex-1 max-w-2xl mx-auto px-4 py-6 w-full space-y-6">
-        {/* Welcome Message */}
-        <div className="text-center sm:text-left">
-          <p className="text-muted-foreground text-sm">
-            Hallo {user.displayName || user.username}! Was steht heute an?
-          </p>
+        {/* Welcome & Time Planner */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-muted-foreground text-sm">
+              Hallo {user.displayName || user.username}!
+            </p>
+            <button
+              onClick={() => setShowTimePlanner(!showTimePlanner)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                showTimePlanner || availableTime
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              Zeitplanung
+            </button>
+          </div>
+
+          {/* Time Planner */}
+          <AnimatePresence>
+            {showTimePlanner && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="bg-card border rounded-xl p-4 space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Wie viel Zeit hast du heute?
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {[30, 60, 90, 120, 180, 240].map((mins) => (
+                        <button
+                          key={mins}
+                          onClick={() => setAvailableTime(availableTime === mins ? null : mins)}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+                            availableTime === mins
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-secondary text-secondary-foreground hover:bg-accent border-transparent"
+                          }`}
+                        >
+                          {formatTime(mins)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Suggested Tasks */}
+                  {availableTime && suggestedTasks.length > 0 && (
+                    <div className="space-y-3 pt-2 border-t">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-primary" />
+                          Das passt in deine Zeit
+                        </p>
+                        <span className="text-xs text-muted-foreground">
+                          {formatTime(suggestedTime)} von {formatTime(availableTime)}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {suggestedTasks.map((task) => (
+                          <div
+                            key={task.id}
+                            className="flex items-center gap-3 p-2 rounded-lg bg-accent/50"
+                          >
+                            <button
+                              onClick={() => handleToggleComplete(task.id, task.isCompleted)}
+                              className="shrink-0"
+                            >
+                              <Circle className="w-5 h-5 text-primary" />
+                            </button>
+                            <span className="flex-1 text-sm text-foreground truncate">
+                              {task.title}
+                            </span>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {task.estimatedMinutes}m
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {availableTime && suggestedTasks.length === 0 && (
+                    <p className="text-sm text-muted-foreground pt-2 border-t">
+                      Keine Aufgaben mit Zeitschätzung gefunden. Füge Zeitangaben zu deinen Aufgaben hinzu!
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Stats Cards */}
@@ -383,12 +513,12 @@ export default function Home() {
             className="bg-card border rounded-xl p-4 text-center"
           >
             <div className="flex justify-center mb-2">
-              <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-500/20 flex items-center justify-center">
-                <ListTodo className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+              <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                <ListTodo className="w-4 h-4 text-orange-600 dark:text-orange-400" />
               </div>
             </div>
             <div className="text-2xl font-bold text-foreground">{totalOpen}</div>
-            <div className="text-xs text-muted-foreground">Offene Aufgaben</div>
+            <div className="text-xs text-muted-foreground">Offen</div>
           </motion.div>
 
           <motion.div
@@ -398,11 +528,11 @@ export default function Home() {
             className="bg-card border rounded-xl p-4 text-center"
           >
             <div className="flex justify-center mb-2">
-              <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center">
-                <Flame className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <Flame className="w-4 h-4 text-red-600 dark:text-red-400" />
               </div>
             </div>
-            <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
               {highPriorityCount}
             </div>
             <div className="text-xs text-muted-foreground">Dringend</div>
@@ -415,16 +545,14 @@ export default function Home() {
             className="bg-card border rounded-xl p-4 text-center"
           >
             <div className="flex justify-center mb-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                 <Timer className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
             <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {totalEstimatedTime > 60
-                ? `${Math.round(totalEstimatedTime / 60)}h`
-                : `${totalEstimatedTime}m`}
+              {formatTime(totalEstimatedTime)}
             </div>
-            <div className="text-xs text-muted-foreground">Zeitaufwand</div>
+            <div className="text-xs text-muted-foreground">Aufwand</div>
           </motion.div>
         </div>
 
@@ -437,10 +565,10 @@ export default function Home() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowAddForm(true)}
-              className="w-full py-4 border-2 border-dashed rounded-xl text-muted-foreground hover:border-violet-500/50 hover:text-violet-600 dark:hover:text-violet-400 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-4 border-2 border-dashed rounded-xl text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex items-center justify-center gap-2"
             >
               <Plus className="w-5 h-5" />
-              <span className="font-medium">Neue Aufgabe hinzufügen</span>
+              <span className="font-medium">Neue Aufgabe</span>
             </motion.button>
           ) : (
             <motion.form
@@ -479,7 +607,7 @@ export default function Home() {
               {/* Priority Selection */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  Wie wichtig ist es?
+                  Wie wichtig?
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {PRIORITIES.map((p) => (
@@ -500,43 +628,45 @@ export default function Home() {
               </div>
 
               {/* Category Selection */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Zu welchem Bereich gehört es?
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewTaskCategory(null)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
-                      !newTaskCategory
-                        ? "bg-foreground text-background border-transparent"
-                        : "bg-secondary text-secondary-foreground hover:bg-accent border-transparent"
-                    }`}
-                  >
-                    Keiner
-                  </button>
-                  {categories.map((cat) => (
+              {categories.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Bereich
+                  </label>
+                  <div className="flex flex-wrap gap-2">
                     <button
-                      key={cat.id}
                       type="button"
-                      onClick={() => setNewTaskCategory(cat.id)}
+                      onClick={() => setNewTaskCategory(null)}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
-                        newTaskCategory === cat.id
-                          ? getCategoryStyles(cat.color, isDark)
+                        !newTaskCategory
+                          ? "bg-foreground text-background border-transparent"
                           : "bg-secondary text-secondary-foreground hover:bg-accent border-transparent"
                       }`}
                     >
-                      {cat.icon} {cat.name}
+                      Keiner
                     </button>
-                  ))}
+                    {categories.map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setNewTaskCategory(cat.id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+                          newTaskCategory === cat.id
+                            ? getCategoryStyles(cat.color, isDark)
+                            : "bg-secondary text-secondary-foreground hover:bg-accent border-transparent"
+                        }`}
+                      >
+                        {cat.icon} {cat.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Time Estimate */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  Wie lange wird es dauern?
+                  Zeitaufwand
                 </label>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -557,7 +687,7 @@ export default function Home() {
                       onClick={() => setNewTaskTime(t.value)}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
                         newTaskTime === t.value
-                          ? "bg-violet-600 text-white border-transparent"
+                          ? "bg-primary text-primary-foreground border-transparent"
                           : "bg-secondary text-secondary-foreground hover:bg-accent border-transparent"
                       }`}
                     >
@@ -571,9 +701,9 @@ export default function Home() {
               <Button
                 type="submit"
                 disabled={!newTaskTitle.trim() || isSubmitting}
-                className="w-full h-12 text-base bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500"
+                className="w-full h-12 text-base bg-primary hover:bg-primary/90 text-primary-foreground"
               >
-                {isSubmitting ? "Wird gespeichert..." : "Aufgabe hinzufügen"}
+                {isSubmitting ? "Wird gespeichert..." : "Hinzufügen"}
               </Button>
             </motion.form>
           )}
@@ -587,43 +717,45 @@ export default function Home() {
               onClick={() => setShowCompleted(!showCompleted)}
               className={`text-sm px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                 showCompleted
-                  ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400"
+                  ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
                   : "bg-secondary text-muted-foreground hover:text-foreground"
               }`}
             >
               <Check className="w-4 h-4" />
-              {showCompleted ? "Alle anzeigen" : "Erledigte zeigen"}
+              {showCompleted ? "Nur offene" : "Erledigte"}
             </button>
           </div>
 
           {/* Category Filter */}
-          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
-            <button
-              onClick={() => setFilterCategory(null)}
-              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-all shrink-0 ${
-                !filterCategory
-                  ? "bg-violet-600 text-white"
-                  : "bg-secondary text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Alle
-            </button>
-            {categories.map((cat) => (
+          {categories.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
               <button
-                key={cat.id}
-                onClick={() =>
-                  setFilterCategory(filterCategory === cat.id ? null : cat.id)
-                }
-                className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-all border shrink-0 ${
-                  filterCategory === cat.id
-                    ? getCategoryStyles(cat.color, isDark)
-                    : "bg-secondary text-muted-foreground border-transparent hover:text-foreground"
+                onClick={() => setFilterCategory(null)}
+                className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-all shrink-0 ${
+                  !filterCategory
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {cat.icon} {cat.name}
+                Alle
               </button>
-            ))}
-          </div>
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() =>
+                    setFilterCategory(filterCategory === cat.id ? null : cat.id)
+                  }
+                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-all border shrink-0 ${
+                    filterCategory === cat.id
+                      ? getCategoryStyles(cat.color, isDark)
+                      : "bg-secondary text-muted-foreground border-transparent hover:text-foreground"
+                  }`}
+                >
+                  {cat.icon} {cat.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Task List */}
@@ -635,8 +767,8 @@ export default function Home() {
                 animate={{ opacity: 1 }}
                 className="text-center py-16"
               >
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-violet-100 dark:bg-violet-500/20 flex items-center justify-center">
-                  <Sparkles className="w-8 h-8 text-violet-600 dark:text-violet-400" />
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                  <Target className="w-8 h-8 text-orange-600 dark:text-orange-400" />
                 </div>
                 <p className="text-foreground font-medium">
                   {showCompleted
@@ -674,7 +806,7 @@ export default function Home() {
                       {task.isCompleted ? (
                         <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                       ) : (
-                        <Circle className="w-6 h-6 text-muted-foreground hover:text-violet-500 transition-colors" />
+                        <Circle className="w-6 h-6 text-muted-foreground hover:text-primary transition-colors" />
                       )}
                     </button>
 
@@ -735,15 +867,13 @@ export default function Home() {
                         {task.estimatedMinutes && (
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Clock className="w-3 h-3" />
-                            {task.estimatedMinutes >= 60
-                              ? `${Math.round(task.estimatedMinutes / 60)} Std`
-                              : `${task.estimatedMinutes} Min`}
+                            {formatTime(task.estimatedMinutes)}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Actions - Always visible on mobile */}
+                    {/* Actions */}
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => {
@@ -757,7 +887,7 @@ export default function Home() {
                       </button>
                       <button
                         onClick={() => handleDeleteTask(task.id)}
-                        className="p-2 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-500/20 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 transition-colors touch-manipulation"
+                        className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors touch-manipulation"
                         aria-label="Löschen"
                       >
                         <Trash2 className="w-4 h-4" />
